@@ -1,0 +1,37 @@
+# Сборочные артефакты FPC
+build/
+out/
+lib/
+backup/
+*.ppu
+*.o
+*.a
+*.res
+*.compiled
+*.build.log
+*.log
+
+# Результаты рендеринга, кадры и снимки экрана (генерируются, в git не нужны)
+*.png
+*.bmp
+*.tga
+*.jpg
+
+# Lazarus: служебные файлы IDE
+*.lps
+*.lpi~
+*.bak
+*.orig
+*~
+
+# Бинарники Windows и Linux
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Редакторы и ОС
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
