@@ -15,41 +15,13 @@ unit EngRender;
 interface
 
 uses
-  SysUtils, Math, EngMath, EngMat4, EngMesh, GLBind;
+  SysUtils, Math, EngMath, EngMat4, EngMesh, EngScene, GLBind;
 
 const
   RENDER_SHADOW_SIZE = 2048;
 
 type
   PSingle = ^Single;
-
-  TRenderItem = record
-    Mesh: Integer;            { индекс меша из RenderUploadMesh }
-    Model: TMat4;
-    Tint: TVec3;              { умножается на цвет вершин }
-    Metallic: Double;
-    Roughness: Double;
-    Checker: Boolean;         { шахматный рисунок пола; такие элементы не отбрасывают тень }
-    CastShadow: Boolean;
-  end;
-
-  TRenderCamera = record
-    Eye: TVec3;
-    Target: TVec3;
-    Up: TVec3;
-    FovY: Double;             { рад }
-    ZNear: Double;
-    ZFar: Double;
-  end;
-
-  TRenderLight = record
-    Direction: TVec3;         { единичный вектор К источнику света }
-    Color: TVec3;             { линейная яркость }
-    SkyColor: TVec3;          { окружающий свет сверху }
-    GroundColor: TVec3;       { окружающий свет снизу }
-    Center: TVec3;            { центр сцены, вокруг которого строится карта теней }
-    Extent: Double;           { полуразмер области теней, м }
-  end;
 
   TGLMesh = record
     Vao: GLuint;
@@ -228,7 +200,7 @@ begin
     R.Error := R.Error + 'кадровый буфер теней не полон' + LineEnding;
 end;
 
-function RenderInit(var R: TRenderer; const ShaderDir: string; W, H: Integer): Boolean;
+function RenderInitGL(var R: TRenderer; const ShaderDir: string; W, H: Integer): Boolean;
 var
   Err: string;
 begin
@@ -320,14 +292,16 @@ begin
     Up := V3(0, 0, 1)
   else
     Up := V3(0, 1, 0);
-  Eye := V3Sub(Light.Center, V3Mul(Dir, 2.0 * E));
+  { Dir - единичный вектор К источнику света: глаз карты теней стоит со стороны света,
+    иначе тени оказываются на противоположной стороне и на полу не видны. }
+  Eye := V3Add(Light.Center, V3Mul(Dir, 2.0 * E));
   View := Mat4LookAt(Eye, Light.Center, Up);
   Proj := Mat4Ortho(-E, E, -E, E, 0.1, 4.0 * E);
   LightVP := Mat4Mul(Proj, View);
 end;
 
-procedure RenderFrame(var R: TRenderer; const Cam: TRenderCamera; const Light: TRenderLight;
-                      const Items: array of TRenderItem);
+procedure RenderFrameGL(var R: TRenderer; const Cam: TRenderCamera; const Light: TRenderLight;
+                        const Items: array of TRenderItem);
 var
   View, Proj, ViewProj, LightVP: TMat4;
   I: Integer;
@@ -401,6 +375,28 @@ begin
     glDrawElements(GL_TRIANGLES, G.IndexCount, GL_UNSIGNED_INT, nil);
   end;
   glBindVertexArray(0);
+end;
+
+{ Вызовы OpenGL выполняются с замаскированными исключениями FPU. Драйверы (Mesa и часть GPU)
+  делают деления, дающие inf/NaN, а FPC по умолчанию прерывает такие операции как EZeroDivide.
+  Прежняя маска восстанавливается, поэтому ошибки в расчётах Паскаля по-прежнему видны. }
+function RenderInit(var R: TRenderer; const ShaderDir: string; W, H: Integer): Boolean;
+var
+  Saved: TFPUExceptionMask;
+begin
+  Saved := SetExceptionMask([exInvalidOp, exDenormalized, exZeroDivide, exOverflow, exUnderflow, exPrecision]);
+  Result := RenderInitGL(R, ShaderDir, W, H);
+  SetExceptionMask(Saved);
+end;
+
+procedure RenderFrame(var R: TRenderer; const Cam: TRenderCamera; const Light: TRenderLight;
+                      const Items: array of TRenderItem);
+var
+  Saved: TFPUExceptionMask;
+begin
+  Saved := SetExceptionMask([exInvalidOp, exDenormalized, exZeroDivide, exOverflow, exUnderflow, exPrecision]);
+  RenderFrameGL(R, Cam, Light, Items);
+  SetExceptionMask(Saved);
 end;
 
 procedure RenderShutdown(var R: TRenderer);

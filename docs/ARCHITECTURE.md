@@ -15,9 +15,8 @@
 |---|---|---|---|
 | 1. Ядро | `src/core` | `EngPNG` | нет |
 | 2. Математика, физика, анимация | `src/engine` | `EngMath`, `EngMat4`, `EngConvex`, `EngPhysics`, `EngAnim`, `EngHumanoid`, `EngRagdoll` | `EngConvex` - от `EngMath`; `EngPhysics` - от `EngConvex`; `EngHumanoid` - от `EngAnim`; `EngRagdoll` - от физики, анимации и гуманоида |
-| 3. Платформа | `src/platform` | `GLBind`, `GLFWBind`, `EngScreenshot` | `GLFWBind` - `dynlibs`; `EngScreenshot` - `EngPNG`, `GLBind` |
-| 4. Рендеринг | `src/render` | `EngMesh`, `EngRender` | `EngRender` - `EngMat4`, `EngMesh`, `GLBind` |
-| 5. Отладка | `src/debug` | `EngSoftRaster` | `EngMat4`, `EngMesh`, `EngRender` (типы), `EngPNG` |
+| 3. Платформа | `src/platform` | `GLBind`, `GLFWBind`, `GLFixedBind`, `OSMesaBind`, `EngScreenshot` | `GLFWBind`, `OSMesaBind` - `dynlibs`; `EngScreenshot` - `EngPNG`, `GLBind` |
+| 4. Рендеринг | `src/render` | `EngMesh`, `EngScene`, `EngRender`, `EngFixedGL` | `EngScene` - `EngMath`, `EngMat4`; `EngRender` - `EngScene`, `EngMesh`, `GLBind`; `EngFixedGL` - `EngScene`, `EngMesh`, `GLFixedBind`, `OSMesaBind` |
 | 6. Приложение | `src/app` | `EngDemo` | все слои |
 | Точки входа | `examples/`, `tools/`, `tests/`, `bench/`, `lazarus/` | программы | любые слои |
 
@@ -41,13 +40,13 @@
 
 Не реализовано: глобальное освещение, постобработка, SSAO, каскадные тени.
 
-Статус проверки: шейдеры компилируются `glslangValidator` (GLSL 430 core, код 0; отрицательный контроль с ошибкой даёт код 2). Сам GL-путь не запускался: на стенде нет GPU и драйвера OpenGL. Программный растеризатор `src/debug/EngSoftRaster.pas` рисует те же меши, камеру и освещение без теней и GGX (Ламберт и Блинн-Фонг). Его снимки (`out/pose_*.png`) - справочные, а не результат GL.
+Статус проверки: шейдеры компилируются `glslangValidator` (GLSL 430 core, код 0; отрицательный контроль с ошибкой даёт код 2). Шейдерный путь GL 4.3 на GPU не запускался: на стенде нет GPU. Он запускался на программном OpenGL Mesa 21.0.3 (softpipe) с переопределением версии (`MESA_GL_VERSION_OVERRIDE=4.3`): кадр `Demo --offscreen` получен. Снимки поз (`out/pose_*.png`) получены через OpenGL 2.x в osmesa-main (фиксированный конвейер, без шейдеров, теней и GGX; `src/render/EngFixedGL.pas`). Прежний CPU-растеризатор `EngSoftRaster` удалён; он остаётся в истории git (коммит cb3eef0).
 
 Снимок окна (`EngScreenshot`) следует методу из статьи lencerf: `glfwGetFramebufferSize`, `GL_PACK_ALIGNMENT = 1`, `glReadPixels`, переворот строк при записи. Отличие: читается задний буфер до `SwapBuffers`, а не передний.
 
 ## Тесты и инструменты
 
-- `tests/TestMain.pas` - набор проверок; модули `TestKit` (проверки), `TestPhysics`, `TestRagdoll` (анимация и рэгдолл), `TestPNG`, `TestRender` (матрицы, меши, растеризатор и регрессия шахматки).
+- `tests/TestMain.pas` - набор проверок; модули `TestKit` (проверки), `TestPhysics`, `TestRagdoll` (анимация и рэгдолл), `TestPNG`, `TestRender` (матрицы, меши, шахматный пол через OpenGL 2.x в OSMesa; без osmesa-main этот тест пропускается).
 - `bench/BenchMain.pas` - бенчмарк: столкновения, физика, рэгдолл, анимация, PNG. См. `docs/BENCHMARK.md`.
-- `tools/PoseSnapshot.pas` - снимки поз рэгдолла через программный растеризатор (`out/pose_*.png`).
+- `tools/PoseSnapshot.pas` - снимки поз рэгдолла через OpenGL 2.x в OSMesa (`out/pose_*.png`); библиотека задаётся `--osmesa` или `ENGINE_OSMESA`, см. `docs/OSMESA.md`.
 - `examples/Demo.pas` и `lazarus/EngineDemo.lpr` - запуск окна; общий код в `src/app/EngDemo.pas`.

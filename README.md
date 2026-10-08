@@ -17,17 +17,17 @@
 | Рендерер OpenGL 4.3 | `src/render/EngRender.pas`, `EngMesh.pas`, `shaders/` | написан; шейдеры проверены `glslangValidator`; **не запускался** |
 | GL и GLFW (собственные загрузчики) | `src/platform/GLBind.pas`, `GLFWBind.pas` | написаны; **не запускались** |
 | Снимок окна (метод lencerf) | `src/platform/EngScreenshot.pas` | написан; **не запускался** |
-| Программный растеризатор (справка) | `src/debug/EngSoftRaster.pas` | работает; без теней и GGX; снимки поз |
+| Снимки поз через OpenGL 2.x (OSMesa) | `src/render/EngFixedGL.pas`, `src/platform/OSMesaBind.pas`, `GLFixedBind.pas` | работает при наличии osmesa-main (см. `docs/OSMESA.md`); без теней и GGX |
 | Приложение и запуск | `src/app/EngDemo.pas`, `examples/Demo.pas` | собирается; без GLFW возвращает код 2 (проверено) |
 | Windows и Lazarus | `build_windows.bat`, `lazarus/EngineDemo.lpi`, `lazarus/EngineDemo.lpr` | написаны; **не проверены** (нет Windows и кросс-компилятора) |
 
 ## Быстрый старт
 
 ```sh
-./build.sh                  # тесты (114 проверок, код 0 - все прошли)
+./build.sh                  # тесты: 114 проверок при наличии osmesa-main (ENGINE_OSMESA), иначе 111; код 0 - все прошли
 ./build.sh bench            # тесты и бенчмарк
 ./build.sh examples         # примеры и инструменты
-./build/examples/PoseSnapshot out                       # снимки поз рэгдолла -> out/pose_*.png
+./build/examples/PoseSnapshot --osmesa libosmesa.so out   # снимки поз через OpenGL 2.x (osmesa-main) -> out/pose_*.png
 ./build/examples/Demo --frames 120 --shot out/demo.png  # окно GLFW (нужны GLFW 3 и OpenGL 4.3)
 ```
 
@@ -38,9 +38,8 @@
 ```
 src/core/       PNG (без зависимостей)
 src/engine/     математика, GJK/EPA, физика, анимация, гуманоид, рэгдолл
-src/platform/   загрузчики GL и GLFW, снимок экрана
-src/render/     геометрия и рендерер OpenGL 4.3
-src/debug/      программный растеризатор для проверки без GPU
+src/platform/   загрузчики GL, GLFW и OSMesa, снимок экрана
+src/render/     геометрия, рендерер OpenGL 4.3, снимки OpenGL 2.x (EngFixedGL), описание сцены (EngScene)
 src/app/        приложение EngDemo (общее для примера и Lazarus)
 shaders/        GLSL 4.30 core: меш, тени
 tests/          набор проверок (TestMain и модули TestKit, TestPhysics, TestRagdoll, TestPNG, TestRender)
@@ -48,7 +47,7 @@ bench/          бенчмарк BenchMain.pas
 examples/       Demo.pas (окно)
 tools/          PoseSnapshot.pas (снимки поз), tools/fpc/ (сборка FPC из исходников)
 lazarus/        проект Lazarus
-docs/           архитектура, физика, бенчмарк, Windows, тулчейн
+docs/           архитектура, физика, бенчмарк, Windows, тулчейн, OSMesa
 ```
 
 ## Документация
@@ -74,7 +73,8 @@ docs/           архитектура, физика, бенчмарк, Windows,
 ## Ограничения
 
 - Окно, GL-рендерер и шейдерный путь не запускались: на стенде нет GPU и дисплея. Шейдеры компилируются `glslangValidator`, модули собираются, код окна проверен только на путь без GLFW (код 2).
-- Снимки в `out/*.png` сделаны программным растеризатором: без теней и GGX. Это справка по геометрии и позам, а не вывод OpenGL. Файлы PNG исключены из git (`.gitignore`), они лежат в рабочем каталоге.
+- Снимки в `out/pose_*.png` сделаны через OpenGL 2.x в osmesa-main (фиксированный конвейер): без теней и GGX, освещение Блинна-Фонга. Это вывод OpenGL, но не шейдерный путь GL 4.3. Файлы PNG исключены из git (`.gitignore`), они лежат в рабочем каталоге.
+- Путь GL 4.3 (`EngRender`) на osmesa-main не запускается: в нём только OpenGL 2.0. Шейдеры GL 4.3 в программном виде проверяются через Mesa 21+ (режим `--offscreen`, см. `docs/OSMESA.md`).
 - Рэгдолл - приближение поведений Euphoria (баланс, упор, дотягивание). Походки, реакций на препятствия и полного совпадения с NaturalMotion нет.
 - Плотные стопки медленные. Оптимизация физики не завершена; AVX2 на этом коде не дал выигрыша.
 - PNG пишется без сжатия, поэтому файлы большие.

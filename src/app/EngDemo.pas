@@ -1,15 +1,19 @@
-{ EngDemo - приложение-демонстрация: окно GLFW, контекст OpenGL 4.3 core, рэгдолл на полу.
+{ EngDemo - приложение-демонстрация: рэгдолл на полу, контекст OpenGL 4.3 core.
+  Два режима: окно GLFW (по умолчанию) и режим без окна через Mesa OSMesa (--offscreen).
   Логика вынесена в юнит, чтобы консольная программа examples/Demo.pas и проект Lazarus
   использовали один и тот же код.
 
-  Управление: R - толчок торса (80 Н·с), Esc - выход.
+  Управление в окне: R - толчок торса (80 Н·с), Esc - выход.
   Аргументы командной строки:
-    --frames N     завершить после N кадров (0 - без ограничения);
-    --shot FILE    сохранить последний кадр методом lencerf (glReadPixels из заднего буфера,
-                   см. EngScreenshot); без --frames снимается кадр 120;
-    --shaders DIR  каталог шейдеров (по умолчанию shaders).
+    --frames N       завершить после N кадров (0 - без ограничения);
+    --shot FILE      сохранить последний кадр методом lencerf (glReadPixels, см. EngScreenshot);
+                     без --frames снимается кадр 120;
+    --shaders DIR    каталог шейдеров (по умолчанию shaders);
+    --offscreen      без окна: контекст создаёт OSMesa (программный OpenGL Mesa, без GPU);
+    --osmesa FILE    библиотека OSMesa (подразумевает --offscreen). По умолчанию libOSMesa.so.8
+                     (Windows: osmesa.dll).
   Коды возврата: 0 - успех; 1 - ошибка окна, контекста OpenGL 4.3 или шейдеров;
-                 2 - библиотека GLFW не найдена. }
+                 2 - библиотека GLFW (или OSMesa в режиме --offscreen) не найдена. }
 unit EngDemo;
 
 {$mode objfpc}{$H+}
@@ -22,7 +26,7 @@ implementation
 
 uses
   SysUtils, Math, EngMath, EngConvex, EngPhysics, EngHumanoid, EngRagdoll,
-  EngMat4, EngMesh, EngRender, GLBind, GLFWBind, EngScreenshot;
+  EngMat4, EngMesh, EngScene, EngRender, GLBind, GLFWBind, OSMesaBind, EngScreenshot;
 
 const
   WIN_W = 1280;
@@ -33,9 +37,11 @@ const
 
 type
   TDemoOptions = record
-    MaxFrames: Integer;      { 0 - без ограничения }
+    MaxFrames: Integer;      { 0 - без ограничения (в режиме --offscreen - SHOT_FRAME) }
     ShotFile: string;        { пусто - снимок не делать }
     ShaderDir: string;
+    Offscreen: Boolean;      { режим без окна, контекст из OSMesa }
+    OSMesaLib: string;       { файл библиотеки OSMesa }
   end;
 
   TDemoScene = record
@@ -56,6 +62,16 @@ begin
 {$ENDIF}
 end;
 
+{ Имя библиотеки OSMesa для текущей платформы. }
+function OSMesaLibraryName: string;
+begin
+{$IFDEF WINDOWS}
+  Result := 'osmesa.dll';
+{$ELSE}
+  Result := 'libOSMesa.so.8';
+{$ENDIF}
+end;
+
 procedure ParseOptions(out Opt: TDemoOptions);
 var
   I: Integer;
@@ -64,29 +80,40 @@ begin
   Opt.MaxFrames := 0;
   Opt.ShotFile := '';
   Opt.ShaderDir := 'shaders';
+  Opt.Offscreen := False;
+  Opt.OSMesaLib := OSMesaLibraryName;
   I := 1;
   while I <= ParamCount do
   begin
     Arg := ParamStr(I);
-    if ((Arg = '--frames') or (Arg = '--shot') or (Arg = '--shaders')) and (I < ParamCount) then
+    if Arg = '--offscreen' then
+      Opt.Offscreen := True
+    else if ((Arg = '--frames') or (Arg = '--shot') or (Arg = '--shaders') or (Arg = '--osmesa'))
+            and (I < ParamCount) then
     begin
       Inc(I);
       if Arg = '--frames' then
         Opt.MaxFrames := StrToIntDef(ParamStr(I), 0)
       else if Arg = '--shot' then
         Opt.ShotFile := ParamStr(I)
+      else if Arg = '--osmesa' then
+      begin
+        Opt.OSMesaLib := ParamStr(I);
+        Opt.Offscreen := True;
+      end
       else
         Opt.ShaderDir := ParamStr(I);
     end
     else
     begin
       WriteLn(ErrOutput, 'неизвестный или неполный аргумент: ', Arg);
-      WriteLn(ErrOutput, 'использование: Demo [--frames N] [--shot файл.png] [--shaders каталог]');
+      WriteLn(ErrOutput, 'использование: Demo [--frames N] [--shot файл.png] [--shaders каталог]',
+              ' [--offscreen] [--osmesa библиотека]');
       Halt(1);
     end;
     Inc(I);
   end;
-  if (Opt.ShotFile <> '') and (Opt.MaxFrames <= 0) then
+  if ((Opt.ShotFile <> '') or Opt.Offscreen) and (Opt.MaxFrames <= 0) then
     Opt.MaxFrames := SHOT_FRAME;
 end;
 
@@ -178,16 +205,37 @@ begin
   Items[HB_COUNT].CastShadow := False;
 end;
 
+{ Один шаг демо: толчок торса (если Push), шаг физики, размер вида и отрисовка в текущий буфер.
+  Общий для окна и режима без окна. }
+procedure DemoFrame(var Sc: TDemoScene; var R: TRenderer; var Items: array of TRenderItem;
+  Push: Boolean; W, H: Integer; var LastW, LastH: Integer);
+var
+  Cam: TRenderCamera;
+  Light: TRenderLight;
+begin
+  if Push then
+    RagdollPush(Sc.World, Sc.Rag, HB_TORSO, V3(0, 0, 80),
+                RagdollBodyPos(Sc.World, Sc.Rag, HB_TORSO));
+  RagdollAdvance(Sc.World, Sc.Rag, SIM_DT, SIM_SUBSTEPS);
+  if (W <> LastW) or (H <> LastH) then
+  begin
+    RenderResize(R, W, H);
+    LastW := W;
+    LastH := H;
+  end;
+  SetupView(Sc, Cam, Light);
+  FillItems(Sc, Items);
+  RenderFrame(R, Cam, Light, Items);
+end;
+
 { Окно, контекст и цикл кадров. GLFW уже загружена; возвращает код выхода (0 или 1). }
 function RunLoaded(const Opt: TDemoOptions): Integer;
 var
   Win: Pointer;
-  Inited, Ready, ShotOk, RWasDown: Boolean;
+  Inited, Ready, ShotOk, RWasDown, PushNow: Boolean;
   R: TRenderer;
   Sc: TDemoScene;
   Items: array of TRenderItem;
-  Cam: TRenderCamera;
-  Light: TRenderLight;
   Frame, FbW, FbH, LastW, LastH: Integer;
 begin
   Result := 1;
@@ -236,26 +284,10 @@ begin
       glfwPollEvents;
       if glfwGetKey(Win, GLFW_KEY_ESCAPE) = GLFW_PRESS then
         glfwSetWindowShouldClose(Win, GLFW_TRUE);
-      if glfwGetKey(Win, GLFW_KEY_R) = GLFW_PRESS then
-      begin
-        if not RWasDown then
-          RagdollPush(Sc.World, Sc.Rag, HB_TORSO, V3(0, 0, 80),
-                      RagdollBodyPos(Sc.World, Sc.Rag, HB_TORSO));
-        RWasDown := True;
-      end
-      else
-        RWasDown := False;
-      RagdollAdvance(Sc.World, Sc.Rag, SIM_DT, SIM_SUBSTEPS);
+      PushNow := (glfwGetKey(Win, GLFW_KEY_R) = GLFW_PRESS) and (not RWasDown);
+      RWasDown := (glfwGetKey(Win, GLFW_KEY_R) = GLFW_PRESS);
       glfwGetFramebufferSize(Win, @FbW, @FbH);
-      if (FbW <> LastW) or (FbH <> LastH) then
-      begin
-        RenderResize(R, FbW, FbH);
-        LastW := FbW;
-        LastH := FbH;
-      end;
-      SetupView(Sc, Cam, Light);
-      FillItems(Sc, Items);
-      RenderFrame(R, Cam, Light, Items);
+      DemoFrame(Sc, R, Items, PushNow, FbW, FbH, LastW, LastH);
       if (Opt.ShotFile <> '') and (Frame = Opt.MaxFrames - 1) then
       begin
         { снимок до подкачки буферов: читаем задний буфер }
@@ -279,11 +311,69 @@ begin
     glfwTerminate;
 end;
 
+{ Режим без окна: контекст OpenGL 4.3 создаёт OSMesa; кадры и снимок - тот же код, что и в окне.
+  Толчок по клавише недоступен (нет ввода), рэгдолл стоит под собственной балансировкой. }
+function RunOffscreen(const Opt: TDemoOptions): Integer;
+var
+  R: TRenderer;
+  Sc: TDemoScene;
+  Items: array of TRenderItem;
+  Frame, LastW, LastH: Integer;
+  ShotOk: Boolean;
+begin
+  Result := 1;
+  if not OSMesaLoad(Opt.OSMesaLib) then
+  begin
+    WriteLn(ErrOutput, 'OSMesa не загружена: ', OSMesaLastError);
+    WriteLn(ErrOutput, 'укажите библиотеку через --osmesa ФАЙЛ (Linux: libOSMesa.so.8)');
+    Result := 2;
+    Exit;
+  end;
+  if not OSMesaStart(WIN_W, WIN_H) then
+    WriteLn(ErrOutput, 'контекст OSMesa не создан: ', OSMesaLastError)
+  else if GLLoadFunctions(@OSMesaGetProc) <> 0 then
+    WriteLn(ErrOutput, 'в OSMesa не хватает обязательных функций OpenGL')
+  else if not GLVersionAtLeast(4, 3) then
+    WriteLn(ErrOutput, 'нужен OpenGL 4.3, получено: ', GLVersionString)
+  else if not RenderInit(R, Opt.ShaderDir, WIN_W, WIN_H) then
+    WriteLn(ErrOutput, 'не удалось загрузить шейдеры из каталога: ', Opt.ShaderDir)
+  else
+  begin
+    Result := 0;
+    ShotOk := True;
+    SceneInit(Sc, R);
+    SetLength(Items, HB_COUNT + 1);
+    LastW := -1;
+    LastH := -1;
+    for Frame := 0 to Opt.MaxFrames - 1 do
+    begin
+      DemoFrame(Sc, R, Items, False, WIN_W, WIN_H, LastW, LastH);
+      if (Opt.ShotFile <> '') and (Frame = Opt.MaxFrames - 1) then
+      begin
+        ShotOk := ScreenshotSave(Opt.ShotFile, WIN_W, WIN_H);
+        if ShotOk then
+          WriteLn('сохранено: ', Opt.ShotFile)
+        else
+          WriteLn(ErrOutput, 'ошибка записи снимка: ', Opt.ShotFile);
+      end;
+    end;
+    if not ShotOk then
+      Result := 1;
+    RenderShutdown(R);
+  end;
+  OSMesaUnload;
+end;
+
 function RunDemo: Integer;
 var
   Opt: TDemoOptions;
 begin
   ParseOptions(Opt);
+  if Opt.Offscreen then
+  begin
+    Result := RunOffscreen(Opt);
+    Exit;
+  end;
   if not GLFWLoad(GlfwLibraryName) then
   begin
     WriteLn(ErrOutput, 'библиотека GLFW 3 не найдена: ', GLFWLastError);

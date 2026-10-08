@@ -18,7 +18,7 @@ if errorlevel 1 exit /b 1
 if "%FPC_EXE%"=="" set "FPC_EXE=fpc"
 
 set "FLAGS=-Mobjfpc -Sh -O3 -Xs -Twin64 -Px86_64"
-set "UNITS=-Fusrc\app -Fusrc\core -Fusrc\engine -Fusrc\render -Fusrc\platform -Fusrc\debug"
+set "UNITS=-Fusrc\app -Fusrc\core -Fusrc\engine -Fusrc\render -Fusrc\platform"
 set "OUT=build\win64"
 if not exist "%OUT%" mkdir "%OUT%"
 

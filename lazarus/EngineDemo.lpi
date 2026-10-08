@@ -30,7 +30,7 @@
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
-      <OtherUnitFiles Value="../src/app;../src/core;../src/engine;../src/render;../src/platform;../src/debug"/>
+      <OtherUnitFiles Value="../src/app;../src/core;../src/engine;../src/render;../src/platform"/>
       <UnitOutputDirectory Value="../build/lazarus/lib"/>
     </SearchPaths>
     <Parsing>
