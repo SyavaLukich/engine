@@ -146,7 +146,7 @@ begin
   for I := 1 to 180 do RagdollAdvance(W, R, STEP, 4);
   Result := Snapshot(OutDir + '/pose_standing.png', W, R) and Result;
 
-  { толчок 80 Н·с, восстановление через 2 с }
+  { толчок 80 Н·с, снимок через 1 с после толчка }
   PhysWorldInit(W, V3(0, -9.81, 0), 16);
   PhysSetGround(W, V3(0, 1, 0), 0, 0.8, 0);
   RagdollCreate(W, R, V3Zero, 0.5, 1);

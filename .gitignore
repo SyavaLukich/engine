@@ -17,6 +17,9 @@ backup/
 *.tga
 *.jpg
 
+# Скриншоты для документации (docs/images): PNG пересжат без потерь, в git нужен
+!docs/images/*.png
+
 # Lazarus: служебные файлы IDE
 *.lps
 *.lpi~

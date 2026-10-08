@@ -33,6 +33,23 @@
 
 Компилятор: FreePascal 3.3.1-dev, собранный из исходников коммита `db4bc06b` (см. `docs/TOOLCHAIN.md`). `build.sh` берёт `~/.local/fpc-3.3.1-dev/bin/fpc`, если он есть, иначе `fpc` из PATH. Переменная `FPC` задаёт другой компилятор, `FPC_CPU_OPTS=""` отключает AVX2.
 
+## Скриншоты
+
+Галерея с подписями и командами, которыми сняты кадры: [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md).
+
+<table>
+<tr>
+<td><img src="docs/images/pose_standing.png" width="320"><br>Стойка</td>
+<td><img src="docs/images/pose_push.png" width="320"><br>Толчок 80 Н·с, снимок через 1 с</td>
+</tr>
+<tr>
+<td><img src="docs/images/pose_fallen.png" width="320"><br>Падение после толчка 150 Н·с</td>
+<td><img src="docs/images/pose_reach.png" width="320"><br>Дотягивание правой кистью</td>
+</tr>
+</table>
+
+<img src="docs/images/demo_gl43_softpipe.png" width="640"><br>OpenGL 4.3 (шейдеры, тени, GGX) через Mesa 21 softpipe: программно, на GPU не проверено
+
 ## Структура
 
 ```
@@ -57,6 +74,8 @@ docs/           архитектура, физика, бенчмарк, Windows,
 - [docs/BENCHMARK.md](docs/BENCHMARK.md) - методика, результаты, узкие места.
 - [docs/WINDOWS.md](docs/WINDOWS.md) - сборка для Windows, Lazarus, коды возврата.
 - [docs/TOOLCHAIN.md](docs/TOOLCHAIN.md) - сборка FPC из исходников и журнал проверки.
+- [docs/OSMESA.md](docs/OSMESA.md) - OSMesa без окна: osmesa-main (OpenGL 2.x) и Mesa 21 (OpenGL 4.3 softpipe).
+- [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) - скриншоты с подписями и командами, которыми они сняты.
 
 ## Результаты (стенд: 2 vCPU Xeon 2.6 GHz, виртуальная машина, один поток)
 
