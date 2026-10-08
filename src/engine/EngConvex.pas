@@ -21,7 +21,7 @@ uses
   EngMath;
 
 type
-  TShapeKind = (skSphere, skBox, skHull);
+  TShapeKind = (skSphere, skBox, skHull, skCapsule);
 
   TConvexShape = record
     Kind: TShapeKind;
@@ -61,6 +61,7 @@ type
 
 function MakeSphereShape(const Radius: Double): TConvexShape;
 function MakeBoxShape(const Half: TVec3): TConvexShape;
+function MakeCapsuleShape(const Radius, HalfSeg: Double): TConvexShape;
 function MakeHullShape(const Points: array of TVec3): TConvexShape;
 function ShapeBoundingRadius(const S: TConvexShape): Double;
 { Опорная точка формы (мировые координаты) для мирового направления Dir. }
@@ -114,6 +115,15 @@ begin
   SetLength(Result.Points, 0);
 end;
 
+{ Капсула: отрезок по локальной оси Y длиной 2*HalfSeg плюс радиус Radius. }
+function MakeCapsuleShape(const Radius, HalfSeg: Double): TConvexShape;
+begin
+  Result.Kind := skCapsule;
+  Result.Radius := Radius;
+  Result.Half := V3(0, HalfSeg, 0);
+  SetLength(Result.Points, 0);
+end;
+
 function MakeHullShape(const Points: array of TVec3): TConvexShape;
 var
   I: Integer;
@@ -134,6 +144,7 @@ begin
   case S.Kind of
     skSphere: Result := S.Radius;
     skBox: Result := V3Length(S.Half);
+    skCapsule: Result := S.Radius + Abs(S.Half.Y);
   else
     begin
       Result := 0;
@@ -161,6 +172,15 @@ begin
           Result := V3(S.Radius, 0, 0)
         else
           Result := V3Mul(D, S.Radius / L);
+      end;
+    skCapsule:
+      begin
+        L := V3Length(D);
+        if D.Y >= 0 then Result := V3(0, S.Half.Y, 0) else Result := V3(0, -S.Half.Y, 0);
+        if L >= ENG_EPS then
+          Result := V3Add(Result, V3Mul(D, S.Radius / L))
+        else
+          Result.X := Result.X + S.Radius;
       end;
     skBox:
       begin

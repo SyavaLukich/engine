@@ -1,4 +1,4 @@
-{ TestMain - набор проверок движка. Запуск: tests/run_tests.sh (код возврата 0 = все проверки пройдены).
+{ TestMain - набор проверок движка. Запуск: ./build.sh (код возврата 0 = все проверки пройдены).
 
   Проверки столкновений сверяются с независимым эталоном - теорема разделяющих осей (SAT)
   для боксов, который даёт точную глубину проникновения. }
@@ -7,21 +7,7 @@ program TestMain;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Math, EngMath, EngConvex;
-
-var
-  GPassed, GFailed: Integer;
-
-procedure Check(const Cond: Boolean; const Name: string);
-begin
-  if Cond then
-    Inc(GPassed)
-  else
-  begin
-    Inc(GFailed);
-    WriteLn('  FAIL: ', Name);
-  end;
-end;
+  SysUtils, Math, EngMath, EngConvex, TestKit, TestPhysics, TestRagdoll, TestPNG;
 
 function NearD(const A, B, Eps: Double): Boolean;
 begin
@@ -532,6 +518,10 @@ begin
   TestDegenerateRandom(50000);
   TestSeparationProperty(2000);
   BenchPairs(20000);
+  RunPhysicsTests;
+  RunAnimTests;
+  RunRagdollTests;
+  RunPngTests;
   WriteLn;
   WriteLn('passed: ', GPassed, ', failed: ', GFailed);
   if GFailed > 0 then
