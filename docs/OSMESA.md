@@ -11,7 +11,14 @@
 
 ## osmesa-main: сборка
 
-Архив `osmesa-main.zip` лежит в корне ветки `arena/721eac7b-engine`. Распакуйте его и выполните:
+Исходники osmesa-main загружены архивом `osmesa-main.zip` коммитом `ceea3cf`. Из репозитория архив удалён, чтобы не хранить бинарный файл в git. Достаньте его из истории и распакуйте:
+
+```sh
+git show ceea3cf:osmesa-main.zip > osmesa-main.zip
+unzip osmesa-main.zip
+```
+
+Затем соберите библиотеку:
 
 ```sh
 cmake -S osmesa-main -B osmesa-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DOSMESA_BUILD_EXAMPLES=OFF
