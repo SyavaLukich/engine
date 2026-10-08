@@ -1,4 +1,5 @@
-{ BenchMain - бенчмарк столкновений (GJK/EPA). Запуск: bench/run_bench.sh.
+{ BenchMain - бенчмарк движка: столкновения (GJK/EPA), физика, рэгдолл, анимация, PNG.
+  Запуск: ./build.sh bench.
   Результаты зависят от железа; программа выводит также число итераций GJK и EPA на пару,
   которое не зависит от машины. Фиксированный RandSeed - прогоны воспроизводимы. }
 program BenchMain;
@@ -6,7 +7,9 @@ program BenchMain;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, EngMath, EngConvex;
+  { EngConvex - последним: его TPose (поза тела) перекрывает TPose из EngAnim (поза скелета);
+    в анимационном бенчмарке тип указан явно как EngAnim.TPose }
+  SysUtils, EngMath, EngPhysics, EngRagdoll, EngHumanoid, EngAnim, EngPNG, EngConvex;
 
 var
   GSink: Integer;   { не даёт компилятору выбросить результаты }
@@ -154,6 +157,182 @@ begin
   Report('convex hull (20 pts) vs hull (20 pts), GJK + EPA', Count, T1 - T0, Stats);
 end;
 
+{ ---- физика ---- }
+
+{ Стопка коробок Side x Side x Layers. Соседние коробки перекрываются на 2 см, поэтому идут
+  контакты тело-тело (GJK/EPA) и тело-пол. Время включает установку стопки в покой. }
+procedure BenchPhysicsStack(const Side, Layers, Steps: Integer);
+var
+  W: TPhysWorld;
+  S: TConvexShape;
+  I, J, L, K, N: Integer;
+  T0, T1, MaxSpeed, Spd: Double;
+  ContactSum: Int64;
+begin
+  PhysWorldInit(W, V3(0, -9.81, 0), 16);
+  PhysSetGround(W, V3(0, 1, 0), 0, 0.8, 0);
+  S := MakeBoxShape(V3(0.5, 0.5, 0.5));
+  N := 0;
+  for L := 0 to Layers - 1 do
+    for I := 0 to Side - 1 do
+      for J := 0 to Side - 1 do
+      begin
+        PhysAddBody(W, PhysMakeBody(S, V3((I - (Side - 1) / 2) * 0.98, 0.5 + L * 0.98,
+                                          (J - (Side - 1) / 2) * 0.98), QuatIdentity, 5));
+        Inc(N);
+      end;
+  for K := 1 to 240 do
+    PhysStep(W, 1.0 / 240.0);
+  ContactSum := 0;
+  T0 := NowSeconds;
+  for K := 1 to Steps do
+  begin
+    PhysStep(W, 1.0 / 240.0);
+    ContactSum := ContactSum + W.ContactCount;
+  end;
+  T1 := NowSeconds;
+  MaxSpeed := 0;
+  for I := 0 to W.BodyCount - 1 do
+  begin
+    Spd := Sqrt(Sqr(W.Bodies[I].Vel.X) + Sqr(W.Bodies[I].Vel.Y) + Sqr(W.Bodies[I].Vel.Z));
+    if Spd > MaxSpeed then MaxSpeed := Spd;
+  end;
+  WriteLn('стопка коробок: ', N, ' тел, ', Steps, ' шагов по 1/240 с');
+  WriteLn('  мкс на шаг: ', (T1 - T0) * 1e6 / Steps:0:1,
+          ', мкс на тело за шаг: ', (T1 - T0) * 1e6 / Steps / N:0:3);
+  WriteLn('  среднее число контактов за шаг: ', ContactSum / Steps:0:1,
+          ', макс. скорость тела в конце: ', MaxSpeed:0:3, ' м/с');
+  WriteLn;
+end;
+
+{ Падение Count шаров радиуса 0.25 м в случайные точки: широкая фаза, контакты тело-тело и тело-пол. }
+procedure BenchPhysicsSpheres(const Count, Steps: Integer);
+var
+  W: TPhysWorld;
+  S: TConvexShape;
+  I, K: Integer;
+  T0, T1: Double;
+  ContactSum: Int64;
+begin
+  PhysWorldInit(W, V3(0, -9.81, 0), 16);
+  PhysSetGround(W, V3(0, 1, 0), 0, 0.5, 0.3);
+  S := MakeSphereShape(0.25);
+  for I := 0 to Count - 1 do
+    PhysAddBody(W, PhysMakeBody(S, V3((Random - 0.5) * 4, 0.25 + I * 0.05, (Random - 0.5) * 4),
+                                QuatIdentity, 1));
+  ContactSum := 0;
+  T0 := NowSeconds;
+  for K := 1 to Steps do
+  begin
+    PhysStep(W, 1.0 / 240.0);
+    ContactSum := ContactSum + W.ContactCount;
+  end;
+  T1 := NowSeconds;
+  WriteLn('шары: ', Count, ' тел, ', Steps, ' шагов по 1/240 с (включая падение)');
+  WriteLn('  мкс на шаг: ', (T1 - T0) * 1e6 / Steps:0:1,
+          ', мкс на тело за шаг: ', (T1 - T0) * 1e6 / Steps / Count:0:3);
+  WriteLn('  среднее число контактов за шаг: ', ContactSum / Steps:0:1);
+  WriteLn;
+end;
+
+{ ---- рэгдолл и анимация ---- }
+
+{ Один рэгдолл: балансировка стойкой (как в тестах), кадр 1/60 с, 4 подшага физики. }
+procedure BenchRagdoll(const Frames: Integer);
+var
+  W: TPhysWorld;
+  R: TRagdoll;
+  K: Integer;
+  T0, T1: Double;
+begin
+  PhysWorldInit(W, V3(0, -9.81, 0), 16);
+  PhysSetGround(W, V3(0, 1, 0), 0, 0.8, 0);
+  RagdollCreate(W, R, V3Zero, 0, 1);
+  for K := 1 to 120 do
+    RagdollAdvance(W, R, 1.0 / 60.0, 4);
+  T0 := NowSeconds;
+  for K := 1 to Frames do
+    RagdollAdvance(W, R, 1.0 / 60.0, 4);
+  T1 := NowSeconds;
+  WriteLn('рэгдолл: стойка, кадр 1/60 с, 4 подшага, 16 итераций решателя');
+  WriteLn('  мкс на кадр: ', (T1 - T0) * 1e6 / Frames:0:1,
+          ', мкс на подшаг: ', (T1 - T0) * 1e6 / Frames / 4:0:1);
+  WriteLn('  высота таза: ', RagdollPelvisHeight(W, R):0:3, ' м, ошибка шарниров: ',
+          RagdollMaxJointError(W, R):0:4, ' м');
+  WriteLn;
+end;
+
+{ Скелет на 15 костей: выборка клипа, кроссфейд каждые 2 с и мировые позы (прямая кинематика). }
+procedure BenchAnimation(const Frames: Integer);
+var
+  S: TSkeleton;
+  Lib: TClipLib;
+  Pl: TAnimPlayer;
+  P, G: EngAnim.TPose;
+  K, Idle, Sway: Integer;
+  T0, T1: Double;
+begin
+  HumanoidSkeleton(S);
+  HumanoidClips(S, Lib);
+  Idle := ClipFindInLib(Lib, 'idle');
+  Sway := ClipFindInLib(Lib, 'sway');
+  PoseBind(S, P);
+  PoseBind(S, G);
+  PlayerInit(Pl);
+  PlayerPlay(Pl, Idle, 0.2);
+  T0 := NowSeconds;
+  for K := 1 to Frames do
+  begin
+    if (K mod 120 = 0) and (Sway >= 0) then
+    begin
+      if (K div 120) mod 2 = 0 then
+        PlayerPlay(Pl, Idle, 0.3)
+      else
+        PlayerPlay(Pl, Sway, 0.3);
+    end;
+    PlayerUpdate(Pl, Lib, 1.0 / 60.0);
+    PlayerEvaluate(Pl, S, Lib, P);
+    PoseGlobal(S, P, G);
+  end;
+  T1 := NowSeconds;
+  WriteLn('анимация: 15 костей, выборка клипа, кроссфейд каждые 2 с, мировые позы');
+  WriteLn('  мкс на кадр: ', (T1 - T0) * 1e6 / Frames:0:3);
+  WriteLn;
+end;
+
+{ ---- PNG ---- }
+
+{ Кодирование Width x Height RGB (deflate stored, без сжатия) и CRC-32 по тому же буферу. }
+procedure BenchPng(const Width, Height, Reps: Integer);
+var
+  Buf, Img: TByteBuf;
+  I, K: Integer;
+  Crc: LongWord;
+  T0, T1, T2: Double;
+begin
+  SetLength(Buf, Width * Height * 3);
+  for I := 0 to High(Buf) do
+    Buf[I] := Byte((I * 13 + (I div (Width * 3)) * 7) and 255);
+  T0 := NowSeconds;
+  for K := 1 to Reps do
+  begin
+    Img := PngEncode(Width, Height, 3, Buf);
+    GSink := GSink + Integer(Length(Img) and 1);
+  end;
+  T1 := NowSeconds;
+  Crc := 0;
+  for K := 1 to Reps do
+    Crc := Crc32Of(Buf, 0, Length(Buf), $FFFFFFFF);
+  T2 := NowSeconds;
+  WriteLn('PNG: ', Width, 'x', Height, ' RGB, кодирований: ', Reps);
+  WriteLn('  мс на кадр: ', (T1 - T0) * 1e3 / Reps:0:2,
+          ', размер файла: ', Length(Img) / 1048576:0:2, ' МБ (без сжатия)');
+  GSink := GSink + Integer(Crc and 1);
+  WriteLn('  CRC-32: ', (T2 - T1) * 1e3 / Reps:0:2, ' мс на буфер, ',
+          Length(Buf) * Reps / (T2 - T1) / 1e6:0:0, ' МБ/с');
+  WriteLn;
+end;
+
 begin
   RandSeed := 2026;
   GSink := 0;
@@ -163,6 +342,13 @@ begin
   BenchBoxes(300000, True);
   BenchBoxes(300000, False);
   BenchHulls(50000);
+  WriteLn('== физика, рэгдолл, анимация, PNG ==');
+  WriteLn;
+  BenchPhysicsStack(10, 4, 1200);
+  BenchPhysicsSpheres(400, 1200);
+  BenchRagdoll(6000);
+  BenchAnimation(600000);
+  BenchPng(1280, 720, 20);
   if GSink < 0 then
     WriteLn('(unreachable)');
 end.
