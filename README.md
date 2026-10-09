@@ -50,6 +50,20 @@
 
 <img src="docs/images/demo_gl43_softpipe.png" width="640"><br>OpenGL 4.3 (шейдеры, тени, GGX) через Mesa 21 softpipe: программно, на GPU не проверено
 
+## Игра Gunner
+
+Экшн-шутер от третьего лица с платформингом в духе Super Mario 64: прыжки, сальто назад, вперёд и вбок,
+бег по стене и отскок, висение на уступе с выстрелом, бег по перилам, подкат, удар сверху. Враги с ИИ
+(зрение, память, A*, замах, нокдаун). Описание, управление и ограничения - [docs/GAME.md](docs/GAME.md).
+
+```sh
+./build.sh examples                         # build/examples/Gunner
+./build/examples/Gunner                     # окно: нужны GLFW 3 и OpenGL 4.3
+./build/examples/Gunner --offscreen --osmesa libOSMesa.so.8 --scenario wallrun --shots out/game   # без окна
+```
+
+Проверки игры: `build/tests/test_game` (79 проверок), запускаются вместе с `./build.sh`. Окно GLFW в этой среде не запускалось.
+
 ## Структура
 
 ```
@@ -76,6 +90,8 @@ docs/           архитектура, физика, бенчмарк, Windows,
 - [docs/TOOLCHAIN.md](docs/TOOLCHAIN.md) - сборка FPC из исходников и журнал проверки.
 - [docs/OSMESA.md](docs/OSMESA.md) - OSMesa без окна: osmesa-main (OpenGL 2.x) и Mesa 21 (OpenGL 4.3 softpipe).
 - [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md) - скриншоты с подписями и командами, которыми они сняты.
+- [docs/GAME.md](docs/GAME.md) - игра Gunner: управление, приёмы, ИИ, уровень, проверки, ограничения.
+- [docs/RENDERING.md](docs/RENDERING.md) - BRDF (Burley, Oren-Nayar), HDR-конвейер, сопоставление с Fox Engine и его источниками.
 
 ## Результаты (стенд: 2 vCPU Xeon 2.6 GHz, виртуальная машина, один поток)
 

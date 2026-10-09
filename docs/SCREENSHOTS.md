@@ -40,3 +40,14 @@ MESA_GL_VERSION_OVERRIDE=4.3 MESA_GLSL_VERSION_OVERRIDE=430 \
 ## Что не снято
 
 Окно GLFW не снималось: на стенде нет GPU и дисплея. Кадры выше получены программным OpenGL, а не драйвером видеокарты.
+
+## Игра Gunner
+
+Снимки сценариев без окна (`--offscreen`, Mesa softpipe). Подписи и команды - в `docs/GAME.md`.
+
+<table>
+<tr>
+<td><img src="images/game_wallrun.png" width="480"><br>Бег по стене: камера за спиной, перила и тень слева</td>
+<td><img src="images/game_backflip.png" width="480"><br>Сальто назад: фигура перевёрнута, полоса здоровья, прицел, счётчик врагов</td>
+</tr>
+</table>
