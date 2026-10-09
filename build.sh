@@ -58,7 +58,7 @@ case "$MODE" in
     ./build/bench/bench_engine
     ;;
   examples)
-    for SRC in examples/*.pas tools/*.pas; do
+    for SRC in examples/*.pas tools/*.pas game/*.pas; do
       [ -f "$SRC" ] || continue
       NAME=$(basename "$SRC" .pas)
       build_prog "$SRC" examples "$NAME"

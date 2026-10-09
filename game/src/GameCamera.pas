@@ -48,6 +48,8 @@ begin
   C.Target := Target;
   C.Forward := V3(-Sin(Yaw), 0.0, -Cos(Yaw));
   C.Eye := V3Sub(Target, V3Mul(C.Forward, CAM_DIST));
+  { Авто-поворот разрешён сразу: ручного поворота ещё не было. }
+  C.ManualTime := CAM_MANUAL_DELAY;
 end;
 
 function CameraForwardXZ(const C: TThirdPerson): TVec3;
