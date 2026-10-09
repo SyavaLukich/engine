@@ -17,6 +17,7 @@ type
     Mesh: Integer;            { индекс меша в массиве мешей }
     Model: TMat4;
     Tint: TVec3;              { умножается на цвет вершин }
+    Emission: TVec3;          { собственное свечение, линейная яркость (трассеры, вспышки) }
     Metallic: Double;
     Roughness: Double;
     Checker: Boolean;         { шахматный рисунок пола; такие элементы не отбрасывают тень }

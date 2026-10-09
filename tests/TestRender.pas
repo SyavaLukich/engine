@@ -137,6 +137,7 @@ begin
   Items[0].Mesh := 0;
   Items[0].Model := Mat4Identity;
   Items[0].Tint := V3(1, 1, 1);
+  Items[0].Emission := V3Zero;
   Items[0].Metallic := 0;
   Items[0].Roughness := 0.9;
   Items[0].Checker := True;

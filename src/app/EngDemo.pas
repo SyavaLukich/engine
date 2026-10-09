@@ -42,6 +42,7 @@ type
     ShaderDir: string;
     Offscreen: Boolean;      { режим без окна, контекст из OSMesa }
     OSMesaLib: string;       { файл библиотеки OSMesa }
+    Diffuse: Integer;        { диффузная модель: RENDER_DIFFUSE_* }
   end;
 
   TDemoScene = record
@@ -82,20 +83,30 @@ begin
   Opt.ShaderDir := 'shaders';
   Opt.Offscreen := False;
   Opt.OSMesaLib := OSMesaLibraryName;
+  Opt.Diffuse := RENDER_DIFFUSE_BURLEY;
   I := 1;
   while I <= ParamCount do
   begin
     Arg := ParamStr(I);
     if Arg = '--offscreen' then
       Opt.Offscreen := True
-    else if ((Arg = '--frames') or (Arg = '--shot') or (Arg = '--shaders') or (Arg = '--osmesa'))
-            and (I < ParamCount) then
+    else if ((Arg = '--frames') or (Arg = '--shot') or (Arg = '--shaders') or (Arg = '--osmesa')
+             or (Arg = '--brdf')) and (I < ParamCount) then
     begin
       Inc(I);
       if Arg = '--frames' then
         Opt.MaxFrames := StrToIntDef(ParamStr(I), 0)
       else if Arg = '--shot' then
         Opt.ShotFile := ParamStr(I)
+      else if Arg = '--brdf' then
+      begin
+        if ParamStr(I) = 'lambert' then
+          Opt.Diffuse := RENDER_DIFFUSE_LAMBERT
+        else if ParamStr(I) = 'oren' then
+          Opt.Diffuse := RENDER_DIFFUSE_OREN_NAYAR
+        else
+          Opt.Diffuse := RENDER_DIFFUSE_BURLEY;
+      end
       else if Arg = '--osmesa' then
       begin
         Opt.OSMesaLib := ParamStr(I);
@@ -108,7 +119,7 @@ begin
     begin
       WriteLn(ErrOutput, 'неизвестный или неполный аргумент: ', Arg);
       WriteLn(ErrOutput, 'использование: Demo [--frames N] [--shot файл.png] [--shaders каталог]',
-              ' [--offscreen] [--osmesa библиотека]');
+              ' [--offscreen] [--osmesa библиотека] [--brdf lambert|burley|oren]');
       Halt(1);
     end;
     Inc(I);
@@ -191,6 +202,7 @@ begin
     Items[B].Mesh := Sc.BodyMesh[B];
     Items[B].Model := Mat4FromRT(Sc.World.Bodies[Body].Pos, Sc.World.Bodies[Body].Rot, V3(1, 1, 1));
     Items[B].Tint := V3(1, 1, 1);
+    Items[B].Emission := V3Zero;
     Items[B].Metallic := 0;
     Items[B].Roughness := 0.6;
     Items[B].Checker := False;
@@ -199,6 +211,7 @@ begin
   Items[HB_COUNT].Mesh := Sc.GroundMesh;
   Items[HB_COUNT].Model := Mat4Identity;
   Items[HB_COUNT].Tint := V3(1, 1, 1);
+  Items[HB_COUNT].Emission := V3Zero;
   Items[HB_COUNT].Metallic := 0;
   Items[HB_COUNT].Roughness := 0.9;
   Items[HB_COUNT].Checker := True;
@@ -265,7 +278,10 @@ begin
       else if not RenderInit(R, Opt.ShaderDir, WIN_W, WIN_H) then
         WriteLn(ErrOutput, 'не удалось загрузить шейдеры из каталога: ', Opt.ShaderDir)
       else
+      begin
+        RenderSetDiffuseMode(R, Opt.Diffuse);
         Ready := True;
+      end;
     end;
   end;
 
@@ -339,6 +355,7 @@ begin
     WriteLn(ErrOutput, 'не удалось загрузить шейдеры из каталога: ', Opt.ShaderDir)
   else
   begin
+    RenderSetDiffuseMode(R, Opt.Diffuse);
     Result := 0;
     ShotOk := True;
     SceneInit(Sc, R);

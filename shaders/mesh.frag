@@ -1,12 +1,18 @@
 #version 430 core
-// Фрагментный шейдер: GGX (Cook-Torrance) с диффузной частью Lambert, теневая карта с PCF 3x3,
-// полусферический окружающий свет, тонемаппинг ACES (аппроксимация Narkowicz) и гамма 2.2.
+// Фрагментный шейдер основного прохода. Выход - линейная HDR-яркость без тонемаппинга:
+// тонемаппинг делает композит (как в Fox Engine, где тонемаппинг стоит раньше LDR-постобработки).
+//
+// Диффузная часть (uDiffuseMode): 0 - Lambert, 1 - Burley (Disney, 2012),
+// 2 - Oren-Nayar (качественная модель в форме Гоутанды/Фуджи). Формулы совпадают с src/render/EngBRDF.pas.
+// Блик: GGX, высотно-коррелированная геометрия Smith (Heitz, 2014), Fresnel Schlick.
+// Тени: карта глубины с PCF 3x3. Туман: экспоненциальный, плотность падает с высотой.
+
 in vec3 vWorld;
 in vec3 vNormal;
 in vec3 vColor;
 in vec4 vLightPos;
 
-out vec4 fragColor;
+layout(location = 0) out vec4 fragColor;
 
 uniform vec3 uCamPos;
 uniform vec3 uLightDir;      // единичный вектор К источнику света
@@ -14,12 +20,17 @@ uniform vec3 uLightColor;
 uniform vec3 uSkyColor;
 uniform vec3 uGroundColor;
 uniform vec3 uTint;
+uniform vec3 uEmission;      // собственное свечение (трассеры, вспышки), линейная яркость
 uniform float uMetallic;
 uniform float uRoughness;
 uniform int uChecker;        // 1 - шахматный рисунок (пол)
 uniform float uCheckerScale;
 uniform sampler2DShadow uShadowMap;
 uniform float uShadowTexel;
+uniform int uDiffuseMode;    // 0 - Lambert, 1 - Burley, 2 - Oren-Nayar
+uniform vec3 uFogColor;
+uniform float uFogDensity;   // 0 - тумана нет
+uniform float uFogFalloff;   // 1/м
 
 const float PI = 3.14159265358979;
 
@@ -43,12 +54,13 @@ float DistributionGGX(float NdH, float a)
     return a2 / (PI * d * d);
 }
 
-float GeometrySmith(float NdV, float NdL, float a)
+// Высотно-коррелированная видимость Smith; множитель 0.5 уже включает деление на 4 NdL NdV.
+float VisibilitySmith(float NdL, float NdV, float a)
 {
-    float k = a * 0.5;
-    float gv = NdV / (NdV * (1.0 - k) + k);
-    float gl = NdL / (NdL * (1.0 - k) + k);
-    return gv * gl;
+    float a2 = a * a;
+    float gv = NdL * sqrt(NdV * NdV * (1.0 - a2) + a2);
+    float gl = NdV * sqrt(NdL * NdL * (1.0 - a2) + a2);
+    return 0.5 / max(gv + gl, 1e-5);
 }
 
 vec3 FresnelSchlick(vec3 f0, float VdH)
@@ -56,9 +68,24 @@ vec3 FresnelSchlick(vec3 f0, float VdH)
     return f0 + (1.0 - f0) * pow(1.0 - VdH, 5.0);
 }
 
-vec3 AcesFilm(vec3 x)
+// Burley: множитель к albedo, включая 1/PI. Для полувектора LdH = VdH.
+float BurleyFactor(float NdL, float NdV, float LdH, float rough)
 {
-    return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
+    float fd90 = 0.5 + 2.0 * rough * LdH * LdH;
+    float fl = 1.0 + (fd90 - 1.0) * pow(1.0 - NdL, 5.0);
+    float fv = 1.0 + (fd90 - 1.0) * pow(1.0 - NdV, 5.0);
+    return fl * fv / PI;
+}
+
+// Oren-Nayar, качественная модель: множитель к albedo, включая 1/PI. LdV = dot(l, v).
+float OrenNayarFactor(float NdL, float NdV, float LdV, float rough)
+{
+    float s2 = rough * rough;
+    float A = 1.0 - 0.5 * s2 / (s2 + 0.33);
+    float B = 0.45 * s2 / (s2 + 0.09);
+    float s = LdV - NdL * NdV;
+    float t = s > 0.0 ? max(NdL, NdV) : 1.0;
+    return (A + B * max(s, 0.0) / max(t, 1e-4)) / PI;
 }
 
 void main()
@@ -83,21 +110,32 @@ void main()
     float NdV = max(dot(n, v), 1e-4);
     float NdH = max(dot(n, h), 0.0);
     float VdH = max(dot(v, h), 0.0);
+    float LdV = dot(l, v);
 
     vec3 F = FresnelSchlick(f0, VdH);
-    float D = DistributionGGX(NdH, a);
-    float G = GeometrySmith(NdV, NdL, a);
-    vec3 spec = D * G * F / max(4.0 * NdV * NdL, 1e-4);
+    vec3 spec = DistributionGGX(NdH, a) * VisibilitySmith(NdL, NdV, a) * F;
     vec3 kd = (1.0 - F) * (1.0 - uMetallic);
-    vec3 diffuse = kd * albedo / PI;
+
+    float dif;
+    if (uDiffuseMode == 1)
+        dif = BurleyFactor(NdL, NdV, VdH, rough);
+    else if (uDiffuseMode == 2)
+        dif = OrenNayarFactor(NdL, NdV, LdV, rough);
+    else
+        dif = 1.0 / PI;
 
     float shadow = ShadowFactor(vLightPos, n, l);
-    vec3 direct = (diffuse + spec) * uLightColor * NdL * shadow;
+    vec3 direct = (kd * albedo * dif + spec) * uLightColor * NdL * shadow;
 
     vec3 hemi = mix(uGroundColor, uSkyColor, n.y * 0.5 + 0.5);
     vec3 ambient = hemi * albedo * (1.0 - 0.5 * uMetallic);
+    vec3 r = reflect(-v, n);
+    vec3 envR = mix(uGroundColor, uSkyColor, r.y * 0.5 + 0.5);
+    vec3 ambientSpec = envR * f0 * (1.0 - 0.6 * rough) * 0.35;
 
-    vec3 col = AcesFilm(direct + ambient);
-    col = pow(col, vec3(1.0 / 2.2));
-    fragColor = vec4(col, 1.0);
+    vec3 col = direct + ambient + ambientSpec;
+    float dist = length(uCamPos - vWorld);
+    float fog = 1.0 - exp(-uFogDensity * dist * exp(-uFogFalloff * max(vWorld.y, 0.0)));
+    col = mix(col, uFogColor, clamp(fog, 0.0, 1.0));
+    fragColor = vec4(col + uEmission, 1.0);
 }

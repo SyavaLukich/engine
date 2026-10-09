@@ -7,7 +7,7 @@ program TestMain;
 {$mode objfpc}{$H+}
 
 uses
-  SysUtils, Math, EngMath, EngConvex, TestKit, TestPhysics, TestRagdoll, TestPNG, TestRender;
+  SysUtils, Math, EngMath, EngConvex, TestKit, TestPhysics, TestRagdoll, TestPNG, TestRender, TestBRDF;
 
 function NearD(const A, B, Eps: Double): Boolean;
 begin
@@ -523,6 +523,7 @@ begin
   RunRagdollTests;
   RunPngTests;
   RunRenderTests;
+  RunBrdfTests;
   WriteLn;
   WriteLn('passed: ', GPassed, ', failed: ', GFailed);
   if GFailed > 0 then

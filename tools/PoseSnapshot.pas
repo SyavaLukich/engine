@@ -87,6 +87,7 @@ begin
     Items[Count].Mesh := B;
     Items[Count].Model := Mat4FromRT(W.Bodies[R.Bodies[B]].Pos, W.Bodies[R.Bodies[B]].Rot, V3(1, 1, 1));
     Items[Count].Tint := V3(1, 1, 1);
+    Items[Count].Emission := V3Zero;
     Items[Count].Metallic := 0;
     Items[Count].Roughness := 0.6;
     Items[Count].Checker := False;
@@ -96,6 +97,7 @@ begin
   Items[Count].Mesh := HB_COUNT;
   Items[Count].Model := Mat4Identity;
   Items[Count].Tint := V3(1, 1, 1);
+  Items[Count].Emission := V3Zero;
   Items[Count].Metallic := 0;
   Items[Count].Roughness := 0.9;
   Items[Count].Checker := True;

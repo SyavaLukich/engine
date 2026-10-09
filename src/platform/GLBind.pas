@@ -77,6 +77,9 @@ type
   TglGetUniformLocation = function(Prog: GLuint; Name: PChar): GLint; cdecl;
   TglUniformMatrix4fv = procedure(Loc: GLint; Count: GLsizei; Transpose: GLboolean; Value: PGLfloat); cdecl;
   TglUniform3f = procedure(Loc: GLint; X, Y, Z: GLfloat); cdecl;
+  TglUniform2f = procedure(Loc: GLint; X, Y: GLfloat); cdecl;
+  TglDrawArrays = procedure(Mode: GLenum; First: GLint; Count: GLsizei); cdecl;
+  TglBlendFunc = procedure(Src, Dst: GLenum); cdecl;
   TglUniform1i = procedure(Loc: GLint; V: GLint); cdecl;
   TglUniform1f = procedure(Loc: GLint; V: GLfloat); cdecl;
   TglGenTextures = procedure(N: GLsizei; Textures: PGLuint); cdecl;
@@ -139,6 +142,9 @@ var
   glGetUniformLocation: TglGetUniformLocation;
   glUniformMatrix4fv: TglUniformMatrix4fv;
   glUniform3f: TglUniform3f;
+  glUniform2f: TglUniform2f;
+  glDrawArrays: TglDrawArrays;
+  glBlendFunc: TglBlendFunc;
   glUniform1i: TglUniform1i;
   glUniform1f: TglUniform1f;
   glGenTextures: TglGenTextures;
@@ -185,6 +191,8 @@ const
   GL_RGBA8 = $8058;
   GL_RGB8 = $8051;
   GL_DEPTH_COMPONENT24 = $81A6;
+  GL_RGBA16F = $881A;
+  GL_ONE = 1;
   GL_DEPTH_COMPONENT32F = $8CAC;
   GL_COLOR_BUFFER_BIT = $00004000;
   GL_DEPTH_BUFFER_BIT = $00000100;
@@ -300,6 +308,9 @@ begin
   glGetUniformLocation := TglGetUniformLocation(LoadOne(GetProc, 'glGetUniformLocation', True));
   glUniformMatrix4fv := TglUniformMatrix4fv(LoadOne(GetProc, 'glUniformMatrix4fv', True));
   glUniform3f := TglUniform3f(LoadOne(GetProc, 'glUniform3f', True));
+  glUniform2f := TglUniform2f(LoadOne(GetProc, 'glUniform2f', True));
+  glDrawArrays := TglDrawArrays(LoadOne(GetProc, 'glDrawArrays', True));
+  glBlendFunc := TglBlendFunc(LoadOne(GetProc, 'glBlendFunc', True));
   glUniform1i := TglUniform1i(LoadOne(GetProc, 'glUniform1i', True));
   glUniform1f := TglUniform1f(LoadOne(GetProc, 'glUniform1f', True));
   glGenTextures := TglGenTextures(LoadOne(GetProc, 'glGenTextures', True));
