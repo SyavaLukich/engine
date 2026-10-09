@@ -56,6 +56,9 @@ case "$MODE" in
     build_prog bench/BenchMain.pas bench bench_engine
     echo "== бенчмарки"
     ./build/bench/bench_engine
+    build_prog bench/BenchGame.pas bench bench_game
+    echo "== бенчмарки игры"
+    ./build/bench/bench_game
     ;;
   examples)
     for SRC in examples/*.pas tools/*.pas game/*.pas; do

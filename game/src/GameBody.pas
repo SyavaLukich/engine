@@ -90,10 +90,32 @@ begin
   T.Box := I;
 end;
 
-{ Грубый отсев по описанной сфере коробки. }
+{ Может ли капсула с центром P задеть коробку I. Сначала грубый отсев по описанной сфере, затем
+  расстояние от трёх точек оси капсулы до коробки в её локальной системе (точная проверка с запасом
+  0.3 м: ошибка выборки оси не больше четверти её длины). Сфера для большого пола не отсекает
+  ничего, поэтому без второй проверки пол проверялся бы GJK/EPA при каждом шаге. }
 function Candidate(const L: TLevel; const P: TVec3; I: Integer): Boolean;
+var
+  K: Integer;
+  Pc, Lp: TVec3;
+  Dx, Dy, Dz, D2, Best: Double;
+  B: TLevelBox;
 begin
-  Result := V3Distance(P, L.Boxes[I].Center) <= L.Boxes[I].Radius + BODY_RADIUS + BODY_HALF_SEG + 0.02;
+  Result := False;
+  B := L.Boxes[I];
+  if V3Distance(P, B.Center) > B.Radius + BODY_RADIUS + BODY_HALF_SEG + 0.02 then Exit;
+  Best := 1.0e30;
+  for K := 0 to 2 do
+  begin
+    Pc := V3(P.X, P.Y - BODY_HALF_SEG + K * BODY_HALF_SEG, P.Z);
+    Lp := QuatInvRotate(B.Rot, V3Sub(Pc, B.Center));
+    Dx := Max(0.0, Abs(Lp.X) - B.Half.X);
+    Dy := Max(0.0, Abs(Lp.Y) - B.Half.Y);
+    Dz := Max(0.0, Abs(Lp.Z) - B.Half.Z);
+    D2 := Dx * Dx + Dy * Dy + Dz * Dz;
+    if D2 < Best then Best := D2;
+  end;
+  Result := Sqrt(Best) <= BODY_RADIUS + 0.3;
 end;
 
 { Контакт капсулы с коробкой I: N - от коробки к капсуле, Depth > 0 при проникновении. }
