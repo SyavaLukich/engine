@@ -25,7 +25,7 @@ fi
 CPU_OPTS=${FPC_CPU_OPTS-"-OpCOREAVX2 -CfAVX2"}
 FLAGS="-Mobjfpc -Sh -O3 -Xs $CPU_OPTS ${FPC_EXTRA:-}"
 # все каталоги src/ - пути поиска модулей; подсистемы не зависят друг от друга на уровне модулей
-UNITPATHS=$(find src -type d | sed 's/^/-Fu/' | tr '\n' ' ')
+UNITPATHS=$(find src game/src -type d | sed 's/^/-Fu/' | tr '\n' ' ')
 
 build_prog() {
   # $1 - исходник, $2 - каталог вывода, $3 - имя исполняемого файла
@@ -47,6 +47,9 @@ MODE=${1:-test}
 build_prog tests/TestMain.pas tests test_main
 echo "== тесты"
 ./build/tests/test_main
+build_prog tests/GameTestMain.pas tests test_game
+echo "== тесты игры"
+./build/tests/test_game
 
 case "$MODE" in
   bench)
