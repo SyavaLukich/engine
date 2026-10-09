@@ -32,7 +32,6 @@ const
   SCENARIO_LENGTH_COMBAT = 900;
 
 var
-  GShotDone: Integer;     { сколько снимков уже сделано в текущем сценарии }
   GMark: Integer;         { тик, с которого идёт фаза сценария }
 
 function ScenarioKnown(const Name: string): Boolean;
@@ -42,7 +41,6 @@ end;
 
 procedure ScenarioSetup(const Name: string; var W: TWorld);
 begin
-  GShotDone := 0;
   GMark := -1;
   W.FreezeEnemies := Name <> 'combat';
   if Name = 'wallrun' then

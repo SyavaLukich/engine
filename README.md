@@ -2,7 +2,7 @@
 
 Движок на FreePascal с OpenGL 4.3 core и GLFW 3. Классов и объектов нет, исключения не используются: данные - записи, поведение - процедуры, ошибки печатаются в stderr с завершением через `Halt`. Состав: столкновения GJK + EPA, физика твёрдых тел, анимация, рэгдолл-поведения (приближение Euphoria), рендерер GL 4.3, снимок экрана в PNG, программный растеризатор для проверки без GPU.
 
-**Что проверено на стенде:** тесты (114 проверок), бенчмарк, сборка всех модулей, программные снимки поз. **Что не проверено:** окно и GL-рендерер (на стенде нет GPU и дисплея), сборка для Windows и открытие проекта Lazarus.
+**Что проверено на стенде:** тесты (132 проверки движка и 79 игры), бенчмарки движка и игры, сборка всех модулей, программные снимки поз и сценарии игры без окна (Mesa softpipe, OpenGL 4.3 через переопределение версии). **Что не проверено:** окно и GL-рендерер (на стенде нет GPU и дисплея), сборка для Windows и открытие проекта Lazarus.
 
 ## Состав и статус
 
@@ -24,7 +24,7 @@
 ## Быстрый старт
 
 ```sh
-./build.sh                  # тесты: 114 проверок при наличии osmesa-main (ENGINE_OSMESA), иначе 111; код 0 - все прошли
+./build.sh                  # тесты: 132 проверки движка (на три больше с ENGINE_OSMESA) и 79 игры; код 0 - все прошли
 ./build.sh bench            # тесты и бенчмарк
 ./build.sh examples         # примеры и инструменты
 ./build/examples/PoseSnapshot --osmesa libosmesa.so out   # снимки поз через OpenGL 2.x (osmesa-main) -> out/pose_*.png
@@ -73,7 +73,7 @@ src/platform/   загрузчики GL, GLFW и OSMesa, снимок экран
 src/render/     геометрия, рендерер OpenGL 4.3, снимки OpenGL 2.x (EngFixedGL), описание сцены (EngScene)
 src/app/        приложение EngDemo (общее для примера и Lazarus)
 shaders/        GLSL 4.30 core: меш, тени
-tests/          набор проверок (TestMain и модули TestKit, TestPhysics, TestRagdoll, TestPNG, TestRender)
+tests/          проверки движка (TestMain: TestPhysics, TestRagdoll, TestPNG, TestRender, TestBRDF) и игры (GameTestMain, TestGame)
 bench/          бенчмарк BenchMain.pas
 examples/       Demo.pas (окно)
 tools/          PoseSnapshot.pas (снимки поз), tools/fpc/ (сборка FPC из исходников)
